@@ -8,11 +8,11 @@
 
     <TabBar>
         <ShellContent
-            Title="Map"
+            Title="マップ"
             ContentTemplate="{DataTemplate local:MainPage}"
             Route="MainPage" />
         <ShellContent
-            Title="Favorites"
+            Title="お気に入り"
             ContentTemplate="{DataTemplate local:FavoritesPage}"
             Route="FavoritesPage" />
     </TabBar>

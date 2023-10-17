@@ -8,7 +8,7 @@ namespace BikeAvailability;
 
 public partial class MainPage : ContentPage, IQueryAttributable
 {
-    // Images to use for the "add favorite" and "remove from favorites" buttons.
+    // お気に入りに追加/削除するボタンに使用する画像
     private readonly string _makeFavoriteImage = "https://raw.githubusercontent.com/ThadT/bike-rental-stations-maui/main/MakeFavorite.png";
     private readonly string _unFavoriteImage = "https://raw.githubusercontent.com/ThadT/bike-rental-stations-maui/main/UnFavorite.png";
     private readonly CityBikesViewModel _vm;
@@ -18,65 +18,51 @@ public partial class MainPage : ContentPage, IQueryAttributable
         InitializeComponent();
         BindingContext = vm;
         _vm = vm;
+
+        // シェアサイクル ステーションを表示する
+        var viewpoint = _vm.ShowBikeStations();
+
+        // 指定した初期表示位置にズームする
+        mapView.SetViewpoint(viewpoint.Result);
+
+        // 全体の貸出可能な自転車台数を表示する
+        BikeInventoryPanel.IsVisible = true;
     }
 
     private async void MapViewTapped(object sender, GeoViewInputEventArgs e)
     {
-        // Close any currently open callout.
+        // 現在開いているコールアウトを閉じる
         mapView.DismissCallout();
         
         var dynamicEntityLayer = mapView.Map.OperationalLayers.OfType<DynamicEntityLayer>().FirstOrDefault();
 
-        // Identify city graphics if they are displayed on the map.
-        if (mapView.GraphicsOverlays["CitiesOverlay"].MaxScale < mapView.GetCurrentViewpoint(ViewpointType.CenterAndScale).TargetScale)
+        if (dynamicEntityLayer != null)
         {
-            var results = await mapView.IdentifyGraphicsOverlayAsync(mapView.GraphicsOverlays["CitiesOverlay"], e.Position, 4, false);
-            if (results.Graphics.Count == 0) { return; }
-
-            // Load the bike stations for the city that was clicked.
-            var cityGraphic = results.Graphics[0];
-            var cityName = cityGraphic.Attributes["Name"].ToString();
-            CityPicker.SelectedItem = cityName;
-        }
-        else if (dynamicEntityLayer != null)
-        {
-            // Identify a bike station from the tap.
+            // タップした場所からシェアサイク ステーションを特定する
             var results = await mapView.IdentifyLayerAsync(dynamicEntityLayer, e.Position, 4, false, 1);
             if (results.GeoElements.Count == 0 || results.GeoElements[0] is not DynamicEntityObservation bikeStation) { return; }
 
-            // Get a callout definition from the view model.
+            // ビューモデルからコールアウト定義を取得する
             var calloutDef = _vm.GetCalloutDefinitionForStation(bikeStation, _unFavoriteImage, _makeFavoriteImage);
-            // Set the button click to add/remove this station as a favorite.
+            // このステーションをお気に入りとして追加/削除するためのボタン クリックを設定する
             calloutDef.OnButtonClick = (tag) =>
             {
-                // Add or remove this station from the favorites list.
-                var isFavorite = _vm.ToggleIsFavorite(tag as DynamicEntity, CityPicker.SelectedItem.ToString());
+                // このステーションをお気に入りリストに追加/削除する
+                var isFavorite = _vm.ToggleIsFavorite(tag as DynamicEntity);
 
-                // Apply the correct image to the callout and show it again.
+                // 正しい画像をコールアウトに適用し、再度表示する
                 calloutDef.ButtonImage = isFavorite ?
                                            new RuntimeImage(new Uri(_unFavoriteImage)) :
                                            new RuntimeImage(new Uri(_makeFavoriteImage));
                 mapView.ShowCalloutAt(bikeStation.Geometry as MapPoint, calloutDef);
             };
-            // Show the callout.
+            // コールアウトを表示する
             mapView.ShowCalloutAt(bikeStation.Geometry as MapPoint, calloutDef);
         } 
     }
 
-    private async void CityPicker_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        // Get the selected city name and pass it to the VM to show the stations for that city.
-        var cityName = CityPicker.SelectedItem.ToString();
-        var viewpoint = await _vm.ShowBikeStations(cityName);
 
-        // Zoom to the extent of the selected city.
-        mapView.SetViewpoint(viewpoint);
-
-        // Show bike inventory for the entire city.
-        BikeInventoryPanel.IsVisible = true;
-    }
-
-    // Handle navigation from a button click in the favorites page to a station.
+    // お気に入りページのボタン クリックからステーションに移動する処理
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
         if (query["favorite"] is DynamicEntity favorite)
@@ -84,16 +70,16 @@ public partial class MainPage : ContentPage, IQueryAttributable
             var location = favorite.Geometry as MapPoint;
             mapView.SetViewpoint(new Viewpoint(location, 10000));
 
-            // Close any currently open callout.
+            // 現在開いているコールアウトを閉じる
             mapView.DismissCallout();
 
             var calloutDef = CityBikesViewModel.GetCalloutDefinitionForStation(favorite, _unFavoriteImage);
             calloutDef.OnButtonClick = (tag) =>
             {
-                // Add or remove this station from the favorites list.
-                var isFavorite = _vm.ToggleIsFavorite(tag as DynamicEntity, CityPicker.SelectedItem.ToString());
+                // このステーションをお気に入りリストに追加/削除する
+                var isFavorite = _vm.ToggleIsFavorite(tag as DynamicEntity);
 
-                // Apply the correct image to the callout and show it again.
+                // 正しい画像をコールアウトに適用し、再度表示する
                 calloutDef.ButtonImage = isFavorite ?
                                            new RuntimeImage(new Uri(_unFavoriteImage)) :
                                            new RuntimeImage(new Uri(_makeFavoriteImage));

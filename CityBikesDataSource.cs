@@ -8,31 +8,27 @@ namespace BikeAvailability;
 
 internal class CityBikesDataSource : DynamicEntityDataSource
 {
-    // Timer to request updates at a given interval.
+    // 指定された間隔で更新をリクエストするするタイマー
     private readonly IDispatcherTimer _getBikeUpdatesTimer = Application.Current.Dispatcher.CreateTimer();
-    // REST endpoint for one of the cities described by the CityBikes API (http://api.citybik.es/).
+    // HELLO CYCLING のシェアサイクル ステーションのオープンデータのエンドポイント（https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_information.json）
     private readonly string _cityBikesUrl;
-    // Dictionary of previous observations for bike stations (to evaluate change in inventory).
+    // シェアサイクル ステーションの以前の観測データ（台数の変化を確認するため）
     private readonly Dictionary<string, Dictionary<string, object>> _previousObservations = new();
-    // Name of the city.
-    private readonly string _cityName;
-    // Timer and related variables used to display observations at a consitent interval.
+    // 一定の間隔で観測データを表示するために使用されるタイマーと関連する変数
     private readonly IDispatcherTimer _addBikeUpdatesTimer = Application.Current.Dispatcher.CreateTimer();
     private readonly List<Tuple<MapPoint, Dictionary<string, object>>> _currentObservations = new();
     private readonly bool _showSmoothUpdates;
 
-    public CityBikesDataSource(string cityName, string cityBikesUrl,
+    public CityBikesDataSource(string cityBikesUrl,
         int updateIntervalSeconds, bool smoothUpdateDisplay = true)
     {
-        // Store the name of the city.
-        _cityName = cityName;
-        // Store the timer interval (how often to request updates from the URL).
+        // タイマー間隔（URL に更新をリクエストする頻度）を保存する
         _getBikeUpdatesTimer.Interval = TimeSpan.FromSeconds(updateIntervalSeconds);
-        // URL for a specific city's bike rental stations.
+        // シェアサイクル ステーションの URL
         _cityBikesUrl = cityBikesUrl;
-        // Set the function that will run at each timer interval.
+        // タイマー間隔ごとに実行する関数を設定
         _getBikeUpdatesTimer.Tick += (s, e) => _ = PullBikeUpdates();
-        // Store whether updates should be shown consitently over time or when the first arrive.
+        // 各ステーションの更新を時間の経過とともに一貫して表示するか、最初のデータ取得時に表示するかを保存する
         _showSmoothUpdates = smoothUpdateDisplay;
         if (smoothUpdateDisplay)
         {
@@ -43,7 +39,7 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     protected override Task OnConnectAsync(CancellationToken cancellationToken)
     {
-        // Start the timer to pull updates periodically.
+        // タイマーを開始して、定期的に更新を取得する
         _getBikeUpdatesTimer.Start();
 
         return Task.CompletedTask;
@@ -51,11 +47,11 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     protected override Task OnDisconnectAsync()
     {
-        // Stop the timers (suspend update requests).
+        // タイマーを停止する (更新リクエストを一時停止する)
         _getBikeUpdatesTimer.Stop();
         _addBikeUpdatesTimer.Stop();
 
-        // Clear the dictionary of previous observations.
+        // 以前の観測データのディクショナリをクリアする
         _previousObservations.Clear();
 
         return Task.CompletedTask;
@@ -63,25 +59,21 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     protected override Task<DynamicEntityDataSourceInfo> OnLoadAsync()
     {
-        // When the data source is loaded, create metadata that defines:
-        // - A schema (fields) for the entities (bike stations) and their observations
-        // - Which field uniquely identifies entities (StationID)
-        // - The spatial reference for the station locations (WGS84)
+        // データソースがロードされたら、以下を定義するメタデータを作成する
+        // - 観測データ（シェアサイクル ステーション）のスキーマ（フィールド）
+        // - エンティティを一意に識別するフィールド（StationID）
+        // - ステーションの位置の空間参照（WGS84）
         var fields = new List<Field>
         {
-            new Field(FieldType.Text, "StationID", "", 50),
-            new Field(FieldType.Text, "StationName", "", 125),
-            new Field(FieldType.Text, "Address", "", 125),
-            new Field(FieldType.Date, "TimeStamp", "", 0),
-            new Field(FieldType.Float32, "Longitude", "", 0),
-            new Field(FieldType.Float32, "Latitude", "", 0),
-            new Field(FieldType.Int32, "BikesAvailable", "", 0),
-            new Field(FieldType.Int32, "EBikesAvailable", "", 0),
-            new Field(FieldType.Int32, "EmptySlots", "", 0),
-            new Field(FieldType.Text, "ObservationID", "", 50),
-            new Field(FieldType.Int32, "InventoryChange", "", 0),
-            new Field(FieldType.Text, "ImageUrl", "", 255),
-            new Field(FieldType.Text, "CityName", "", 50)
+            new Field(FieldType.Text, "StationID", "", 50),　//一意の ID
+            new Field(FieldType.Text, "StationName", "", 125), //ステーション名
+            new Field(FieldType.Text, "Address", "", 125), //ステーションの住所
+            new Field(FieldType.Float32, "Longitude", "", 0), //ステーションの経度
+            new Field(FieldType.Float32, "Latitude", "", 0), //ステーションの緯度
+            new Field(FieldType.Int32, "BikesAvailable", "", 0), //貸出可能な台数
+            new Field(FieldType.Int32, "EmptySlots", "", 0), //駐車可能な台数
+            new Field(FieldType.Int32, "InventoryChange", "", 0), //貸出可能台数の変化数
+            new Field(FieldType.Text, "ImageUrl", "", 255)
         };
         var info = new DynamicEntityDataSourceInfo("StationID", fields)
         {
@@ -93,15 +85,15 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     private async Task PullBikeUpdates()
     {
-        // Exit if the data source is not connected.
+        // データ ソースが接続されていない場合は終了する
         if (this.ConnectionStatus != ConnectionStatus.Connected) { return; }
 
         try
         {
-            // Stop the timer that adds observations while getting updates.
+            // 更新の取得中に観測データを追加するタイマーを停止する
             _addBikeUpdatesTimer.Stop();
 
-            // If showing consistent updates, process any remaining ones from the last update.
+            // 各ステーションの更新を一貫して表示する場合は、最後の更新から残っている更新を処理する
             if (_showSmoothUpdates)
             {
                 for (int i = _currentObservations.Count - 1; i > 0; i--)
@@ -112,62 +104,80 @@ internal class CityBikesDataSource : DynamicEntityDataSource
                 }
             }
 
-            // Call a function to get a set of bike stations (locations and attributes).
+            // 関数を呼び出して、一連のシェアサイクル ステーション（場所と属性）を取得する
             var bikeUpdates = await GetDeserializedCityBikeResponse();
             var updatedStationCount = 0;
             var totalInventoryChange = 0;
 
-            // Iterate the info for each station.
+            // 各ステーションの情報を反復する
             foreach (var update in bikeUpdates)
             {
-                // Get the location, attributes, and ID for this station.
+                // このステーションの位置、属性、ID を取得する
                 var location = update.Item1;
                 var attributes = update.Item2;
                 var id = attributes["StationID"].ToString();
 
-                // Get the last set of values for this station (if they exist).
+                // このステーションの最後の更新の値のセットを取得する（存在する場合）
                 _previousObservations.TryGetValue(id, out Dictionary<string, object> lastObservation);
                 if (lastObservation is not null)
                 {
-                    // Check if the new update has different values for BikesAvailable or EBikesAvailable.
-                    if ((int)attributes["BikesAvailable"] != (int)lastObservation["BikesAvailable"] ||
-                        (int)attributes["EBikesAvailable"] != (int)lastObservation["EBikesAvailable"])
+                    // 最新の更新の BikesAvailable の値が異なるかどうかを確認する
+                    if ((int)attributes["BikesAvailable"] != (int)lastObservation["BikesAvailable"])
                     {
-                        // Calculate the change in inventory.
+                        // 貸出可能台数の変化を計算する
                         var stationInventoryChange = (int)attributes["BikesAvailable"] - (int)lastObservation["BikesAvailable"];
                         attributes["InventoryChange"] = stationInventoryChange;
                         totalInventoryChange += stationInventoryChange;
                         updatedStationCount++;
 
-                        // If showing updates immediately, add the update to the data source.
+                        // 更新をすぐに表示する場合は、更新をデータソースに追加する
                         if (!_showSmoothUpdates)
                         {
                             AddObservation(location, attributes);
                         }
                         else
                         {
-                            // If showing smooth (consistent) updates, add to the current observations list for processing.
-                            var observation = new Tuple<MapPoint, Dictionary<string, object>>(location, attributes);
-                            _currentObservations.Add(observation);
+
+                            var demoFlag = false;
+
+                            if (demoFlag == true)
+                            {
+                                var point = new MapPoint(140.0418738, 35.6484731, SpatialReference.Create(4326));
+                                var buffer = GeometryEngine.BufferGeodetic(point, 10, LinearUnits.Kilometers);
+                                var contains = GeometryEngine.Contains(buffer, location);
+                                if (contains == true)
+                                {
+                                    var observation = new Tuple<MapPoint, Dictionary<string, object>>(location, attributes);
+                                    _currentObservations.Add(observation);
+                                }
+                            }
+                            else {
+
+                                // 各ステーションの更新を一貫して表示する場合は、処理のために現在の観測データのリストに追加する
+                                var observation = new Tuple<MapPoint, Dictionary<string, object>>(location, attributes);
+                                _currentObservations.Add(observation);
+
+                            }
                         }
                     }
 
-                    // Update the latest update for this station.
+                    // このステーションの最新の更新をアップデートする
                     _previousObservations[id] = attributes;
                 }
             }
 
-            // If showing consistent updates, set up the timer for adding observations to the data source.
+            // 更新を一貫して表示する場合は、データソースに観測データを追加するためのタイマーを設定する
             if (_showSmoothUpdates)
             {
                 if (_currentObservations.Count > 0)
                 {
                     var updatesPerSecond = (int)Math.Ceiling(_currentObservations.Count / _getBikeUpdatesTimer.Interval.TotalSeconds);
+
                     if (updatesPerSecond > 0)
                     {
                         long ticksPerUpdate = 10000000 / updatesPerSecond;
                         _addBikeUpdatesTimer.Interval = TimeSpan.FromTicks(ticksPerUpdate);
-                        _addBikeUpdatesTimer.Start(); // Tick event will add one update.
+                        _addBikeUpdatesTimer.Start(); // Tick イベントにより 1 つの更新が追加される
                     }
 
                     Debug.WriteLine($"**** Stations from this update = {updatedStationCount}, total to process = {_currentObservations.Count}");
@@ -184,8 +194,8 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     private void AddBikeObservations()
     {
-        // Add one observation on the timer interval.
-        // The interval was determined to spread these additions over the span required to get the next updates.
+        // タイマー間隔で1つの観測データを追加する
+        // この間隔は、次の更新を取得するスパンに、これらの追加を分散するように計算されている
         if (_currentObservations.Count > 0)
         {
             var obs = _currentObservations[^1];
@@ -196,24 +206,24 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     public async Task GetInitialBikeStations()
     {
-        // Exit if the data source is not connected.
+        // データソースが接続されていない場合は終了する
         if (this.ConnectionStatus != ConnectionStatus.Connected) { return; }
 
         try
         {
-            // Call a function to get a set of bike stations (locations and attributes).
+            // 関数を呼び出して、一連のシェアサイクル ステーション（場所と属性）を取得する
             var bikeUpdates = await GetDeserializedCityBikeResponse();
 
-            // Iterate the info for each station.
+            // 各ステーションの情報を反復する
             foreach (var update in bikeUpdates)
             {
                 var location = update.Item1;
                 var attributes = update.Item2;
 
-                // Update the latest update for this station.
+                // このステーションの最新の更新をアップデートする
                 _previousObservations[attributes["StationID"].ToString()] = attributes;
 
-                // Add the update to the data source.
+                // 更新をデータソースに追加する
                 AddObservation(location, attributes);
             }
         }
@@ -230,44 +240,40 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
         try
         {
-            // Get a JSON response from the REST service.
+            // HTTP リクエストから JSON のレスポンスを取得する
             var client = new HttpClient();
             HttpResponseMessage response = await client.GetAsync(new Uri(_cityBikesUrl));
             if (response.IsSuccessStatusCode)
             {
-                // Read the JSON response for this bike network (including all stations).
+                // このシェアサイクルの情報（すべてのステーションを含む）の JSON レスポンスを読み取る
                 var cityBikeJson = await response.Content.ReadAsStringAsync();
 
-                // Get the "stations" portion of the JSON and deserialize the list of stations.
+                // JSON の "stations" 部分を取得し、ステーションのリストを逆シリアル化する
                 var stationsStartPos = cityBikeJson.IndexOf(@"""stations"":[") + 11;
                 var stationsEndPos = cityBikeJson.LastIndexOf(@"]") + 1;
                 var stationsJson = cityBikeJson[stationsStartPos..stationsEndPos];
                 var bikeUpdates = JsonSerializer.Deserialize<List<BikeStation>>(stationsJson);
 
-                // Iterate the info for each station.
+                // 各ステーションの情報を反復する
                 foreach (var update in bikeUpdates)
                 {
-                    // Build a dictionary of attributes from the response.
+                    // レスポンスから属性のディクショナリを作成する
                     var attributes = new Dictionary<string, object>
                     {
-                        { "StationID", update.StationInfo.StationID },
+                        { "StationID", update.StationID },
                         { "StationName", update.StationName },
-                        { "Address", update.StationInfo.Address },
-                        { "TimeStamp", DateTime.Parse(update.TimeStamp) },
+                        { "Address", update.Address },
                         { "Longitude", update.Longitude },
                         { "Latitude", update.Latitude },
-                        { "BikesAvailable", update.BikesAvailable },
-                        { "EBikesAvailable", update.StationInfo.EBikesAvailable },
-                        { "EmptySlots", update.EmptySlots },
-                        { "ObservationID", update.ObservationID },
+                        { "BikesAvailable", update.StationCapacity.BikesAvailable },
+                        { "EmptySlots", update.StationCapacity.EmptySlots },
                         { "InventoryChange", 0 },
-                        { "ImageUrl", "https://static.arcgis.com/images/Symbols/Transportation/esriDefaultMarker_189.png" },
-                        { "CityName", _cityName }
+                        { "ImageUrl", "https://static.arcgis.com/images/Symbols/Transportation/esriDefaultMarker_189.png" }
                     };
-                    // Create a map point from the longitude (x) and latitude (y) values.
+                    // 経度（x）と緯度（y）の値からマップ ポイントを作成する
                     var location = new MapPoint(update.Longitude, update.Latitude, SpatialReferences.Wgs84);
 
-                    // Add this bike station's info to the list.
+                    // このシェアサイクル ステーションの情報をリストに追加する
                     bikeInfo.Add(new Tuple<MapPoint, Dictionary<string, object>>(location, attributes));
                 }
             }

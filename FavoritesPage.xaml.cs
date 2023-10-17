@@ -11,7 +11,7 @@ public partial class FavoritesPage : ContentPage
         BindingContext = vm;
 	}
 
-    // Navigate to the map page to show a selected favorite station.
+    // マップページに移動して、選択したお気に入りのステーションを表示する
     private async void StationClicked(object sender, EventArgs e)
     {
         var stationButton = sender as Button;

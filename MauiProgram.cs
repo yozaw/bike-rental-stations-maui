@@ -34,9 +34,9 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             })
             .UseArcGISRuntime(config => config
-                .UseApiKey("YOUR_API_KEY")
+                .UseApiKey("<ここに API キーを入力します>")
                 .ConfigureAuthentication(auth => auth
-                .UseDefaultChallengeHandler() // Use the default authentication dialog
+                .UseDefaultChallengeHandler() // デフォルトの認証ダイアログを使用する
               )
             );
         builder.Services.AddSingleton<CityBikesViewModel>();

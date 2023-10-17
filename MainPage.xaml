@@ -3,11 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:esri="http://schemas.esri.com/arcgis/runtime/2013"
              x:Class="BikeAvailability.MainPage"
-             Title="Bike availability"> 
+             Title="シェアサイクル マップ"> 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition/>
-            <RowDefinition Height="70"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition/>
@@ -19,7 +18,7 @@
                       GraphicsOverlays="{Binding GraphicsOverlays}"
                       GeoViewTapped="MapViewTapped"/>
         <Border x:Name="BikeInventoryPanel" 
-                WidthRequest="240" HeightRequest="120"
+                WidthRequest="240" HeightRequest="80"
                 VerticalOptions="Start" HorizontalOptions="Start"
                 StrokeShape="RoundRectangle 10"
                 Margin="10"
@@ -28,7 +27,7 @@
             <Grid ColumnDefinitions="*,*"
                   ColumnSpacing="15"
                   VerticalOptions="Center"
-                  RowDefinitions="auto,auto,auto,auto,auto"
+                  RowDefinitions="auto,auto"
                   RowSpacing="5">
                 <Label x:Name="CityLabel" Grid.Row="0" Grid.ColumnSpan="2"
                        HorizontalOptions="Center"
@@ -37,34 +36,12 @@
                 <Label Grid.Row="1" 
                        FontAttributes="Bold" TextColor="AliceBlue"
                        HorizontalTextAlignment="End" 
-                       Text="Total Bikes:"/>
-                <Label Grid.Row="1" Grid.Column="1" 
+                       Text="貸出可能:"/>
+                <Label Grid.Row="1" Grid.Column="1"
                        TextColor="AliceBlue"
-                       Text="{Binding TotalBikes, StringFormat='{0:N0}'}"/>
-                <Label Grid.Row="2" 
-                       FontAttributes="Bold" TextColor="AliceBlue"
-                       HorizontalTextAlignment="End" 
-                       Text="Available:"/>
-                <Label Grid.Row="2" Grid.Column="1"
-                       TextColor="AliceBlue"
-                       Text="{Binding BikesAvailable, StringFormat='{0:N0}'}"/>
-                <Label Grid.Row="3" 
-                       FontAttributes="Bold" TextColor="AliceBlue"
-                       HorizontalTextAlignment="End" 
-                       Text="Out:"/>
-                <Label Grid.Row="3" Grid.Column="1" 
-                       TextColor="AliceBlue"
-                       Text="{Binding BikesOut, StringFormat='{0:N0}'}"/>
-                <ProgressBar Grid.Row="4" Grid.ColumnSpan="2" Margin="5,0"
-                             ProgressColor="Blue" BackgroundColor="Purple"
-                             Progress="{Binding PercentBikesAvailable}"
-                             ToolTipProperties.Text="{Binding PercentBikesAvailable, StringFormat='{0:P0}'}"/>
+                       Text="{Binding BikesAvailable, StringFormat='{0:N0} 台'}"/>
             </Grid>
         </Border>
-        <Picker x:Name="CityPicker" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                HorizontalOptions="CenterAndExpand" VerticalOptions="CenterAndExpand"
-                Title="Select a city"
-                ItemsSource="{Binding CityList}"
-                SelectedIndexChanged="CityPicker_SelectedIndexChanged"/>
+
     </Grid>
 </ContentPage>

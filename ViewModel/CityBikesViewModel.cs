@@ -9,9 +9,9 @@ namespace BikeAvailability.ViewModel;
 
 public partial class CityBikesViewModel : ObservableObject
 {
-    // A custom DynamicEntityDataSource for showing bike rental stations.
+    // シェアサイクル ステーションを表示するためのカスタム Dynamic EntityDataSource
     private CityBikesDataSource _cityBikesDataSource;
-    // A DynamicEntityLayer to handle display of dynamic entities from the data source.
+    // データソースからの動的エンティティの表示を処理する DynamicEntityLayer
     private DynamicEntityLayer _dynamicEntityLayer;
     private readonly object _thisLock = new();
 
@@ -24,13 +24,14 @@ public partial class CityBikesViewModel : ObservableObject
     private Esri.ArcGISRuntime.Mapping.Map _map;
 
     [ObservableProperty]
-    private List<string> _cityList;
+    private string _cityName = "HELLO CYCLING";
+
+    private string _cityBikesUrl = "https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_information.json";
+
+    private MapPoint _initLocation = new MapPoint(139.76147890091, 35.654611251508, SpatialReferences.Wgs84);
 
     [ObservableProperty]
-    private string _cityName;
-
-    [ObservableProperty]
-    private int _updateIntervalSeconds = 240; // 4 minutes
+    private int _updateIntervalSeconds = 300; // 5分
 
     private readonly Dictionary<long, DynamicEntity> _favoriteBikeStations = new();
 
@@ -40,101 +41,44 @@ public partial class CityBikesViewModel : ObservableObject
     [ObservableProperty]
     private GraphicsOverlayCollection _graphicsOverlays = new();
 
-    private Dictionary<string, Tuple<string, MapPoint>> _cityBikeStations;
-
-    // Graphics overlay to show cities with bike station info.
-    // (this is only shown before the user selects a city from the drop down)
-    private GraphicsOverlay _citiesGraphicsOverlay;
-
-    // Graphics overlay for flashing stations that have an inventory change.
+    // 貸出可能台数に変更があるステーションを点滅させるためのグラフィックス オーバーレイ
     private GraphicsOverlay _flashOverlay;
 
-    // Variables to track bike inventory.
-    [ObservableProperty]
-    private int _totalBikes;
-    [ObservableProperty]
-    private int _bikesOut;
+    // 貸出可能台数の変化を追跡するための変数
     [ObservableProperty]
     private int _bikesAvailable;
-    [ObservableProperty]
-    private double _percentBikesAvailable;
 
     private void Init()
     {
-        // A list of available cities to show in the app, along with their location and REST endpoint URL.
-        _cityBikeStations = new Dictionary<string, Tuple<string, MapPoint>>
-        {
-            {"Milan", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/bikemi", new MapPoint(9.1865, 45.4654, SpatialReferences.Wgs84))},
-            {"Los Angeles", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/metro-bike-share", new MapPoint(-118.2437, 34.0522, SpatialReferences.Wgs84))},
-            {"Mexico City", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/ecobici", new MapPoint(-99.1332, 19.4326, SpatialReferences.Wgs84))},
-            {"New York", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/citi-bike-nyc", new MapPoint(-74.0060, 40.7128, SpatialReferences.Wgs84))},
-            {"Paris", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/velib", new MapPoint(2.3522, 48.8566, SpatialReferences.Wgs84))},
-            {"Montreal", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/bixi-montreal", new MapPoint(-73.5539, 45.5086, SpatialReferences.Wgs84))},
-            {"Washington DC", new Tuple<string, MapPoint>("https://api.citybik.es/v2/networks/capital-bikeshare", new MapPoint(-77.0369, 38.9072, SpatialReferences.Wgs84))}
-        };
 
-        // Show the city names as a list in the dropdown.
-        CityList = _cityBikeStations.Keys.ToList();
+        // 道路(夜)タイプのベースマップを使用して新しいマップを作成する
+        var vectorTileUrl = "https://basemapstyles-api.arcgis.com/arcgis/rest/services/styles/v2/styles/arcgis/navigation-night?language=ja";
+        ArcGISVectorTiledLayer vectorTiledLayer = new ArcGISVectorTiledLayer(new Uri(vectorTileUrl));
+        Map = new Esri.ArcGISRuntime.Mapping.Map(new Basemap(vectorTiledLayer));
 
-        // Create a new map with a dark navigation basemap.
-        Map = new Esri.ArcGISRuntime.Mapping.Map(BasemapStyle.ArcGISNavigationNight);
-
-        // Create an overlay for flashing updated features.
+        // 更新されたフィーチャを点滅させるためのオーバーレイを作成する
         _flashOverlay = new GraphicsOverlay();
 
-        // Create an overlay to show the city locations.
-        _citiesGraphicsOverlay = new GraphicsOverlay
-        {
-            Id = "CitiesOverlay",
-            MaxScale = 1000000,
-            Renderer = new SimpleRenderer(new SimpleMarkerSymbol(SimpleMarkerSymbolStyle.Circle, System.Drawing.Color.Yellow, 26))
-        };
-
-        // Add each city as a graphic in the cities overlay, add attributes for the name and URL.
-        foreach (var city in _cityBikeStations.Keys)
-        {
-            var cityInfo = _cityBikeStations[city];
-            var g = new Graphic(cityInfo.Item2);
-            g.Attributes.Add("Name", city);
-            g.Attributes.Add("URL", cityInfo.Item1);
-            _citiesGraphicsOverlay.Graphics.Add(g);
-        }
-
-        GraphicsOverlays.Add(_citiesGraphicsOverlay);
         GraphicsOverlays.Add(_flashOverlay);
 
-        var citiesExtent = GeometryEngine.CombineExtents(_citiesGraphicsOverlay.Graphics.Select(g => g.Geometry));
-        var envBldr = new EnvelopeBuilder(citiesExtent);
-        envBldr.Expand(1.1);
-        Map.InitialViewpoint = new Viewpoint(envBldr.ToGeometry());
     }
 
-    public async Task<Viewpoint> ShowBikeStations(string cityName)
+    public async Task<Viewpoint> ShowBikeStations()
     {
-        // Store the city name.
-        CityName = cityName;
-
-        // Get the city's REST URL and location (map point).
-        var cityInfo = _cityBikeStations[cityName];
-        var cityBikesUrl = cityInfo.Item1;
-        var cityLocation = cityInfo.Item2;
-
-        // Clean up any existing CityBikesDataSource.
+        // 既存の CityBikesDataSource をクリーンアップする
         if (_cityBikesDataSource != null)
         {
             await _cityBikesDataSource.DisconnectAsync();
             _cityBikesDataSource = null;
         }
 
-        // Clear inventory values.
-        TotalBikes = 0;
+        // 貸出可能台数の値をクリアする
         BikesAvailable = 0;
-        BikesOut = 0;
 
-        // Create an instance of the custom dynamic entity data source with the URL and interval.
-        _cityBikesDataSource = new CityBikesDataSource(cityName, cityBikesUrl, UpdateIntervalSeconds);
+        // URL と取得間隔を使用してカスタム Dynamic EntityDataSource のインスタンスを作成する
+        _cityBikesDataSource = new CityBikesDataSource(_cityBikesUrl, UpdateIntervalSeconds);
 
-        // When the connection is established, request an initial set of data.
+        // 接続が確立されたら、初期データセットをリクエストする
         _cityBikesDataSource.ConnectionStatusChanged += (s, e) =>
         {
             if (e == ConnectionStatus.Connected)
@@ -143,41 +87,38 @@ public partial class CityBikesViewModel : ObservableObject
             }
         };
 
-        // Listen for dynamic entities being created, calculate the initial bike inventory.
+        // 作成される動的エンティティをリッスンし、最初の貸出可能な自転車台数を計算する
         _cityBikesDataSource.DynamicEntityReceived += (s, e) => CreateTotalBikeInventory(e.DynamicEntity);
 
-    // Listen for new observations; flash the station and update inventory if there's an update.
-    _cityBikesDataSource.DynamicEntityObservationReceived += async (s, e) =>
-    {
-        var bikesAdded = (int)e.Observation.Attributes["InventoryChange"];
-        if (bikesAdded == 0) { return; }
+        // 新しい観測データをリッスンする：更新がある場合は、ステーションを点滅し、貸出可能台数の変化の値を更新する
+        _cityBikesDataSource.DynamicEntityObservationReceived += async (s, e) =>
+        {
+            var bikesAdded = (int)e.Observation.Attributes["InventoryChange"];
+            if (bikesAdded == 0) { return; }
 
-        UpdateBikeInventory(bikesAdded); // note: this might be negative if more bikes were taken than returned.
-        await Task.Run(() => FlashDynamicEntityObservationAsync(e.Observation.Geometry as MapPoint, bikesAdded > 0));
-    };
+            UpdateBikeInventory(bikesAdded); // note: this might be negative if more bikes were taken than returned.
+            await Task.Run(() => FlashDynamicEntityObservationAsync(e.Observation.Geometry as MapPoint, bikesAdded > 0));
+        };
 
-        // Remove the existing dynamic entity layer from the map.
+        // 既存の DynamicEntityLayer をマップから削除する
         Map.OperationalLayers.Remove(_dynamicEntityLayer);
         _dynamicEntityLayer = null;
 
-        // Filter the favorites list for this city.
-        FavoriteList = _favoriteBikeStations.Values.Where(f => f.Attributes["CityName"].ToString() == cityName).ToList();
-
-        // Create a new DynamicEntityLayer with the new CityBikesDataSource and add it to the map.
+        // 新しい CityBikesDataSource を使用して、新しい DynamicEntityLayer を作成しマップに追加する
         _dynamicEntityLayer = new DynamicEntityLayer(_cityBikesDataSource)
         {
             Renderer = CreateBikeStationsRenderer()
         };
         Map.OperationalLayers.Add(_dynamicEntityLayer);
 
-        // Return a viewpoint for the city location.
-        return new Viewpoint(cityLocation, 130000);
+        // 初期表示位置のビューポイントを返す
+        return new Viewpoint(_initLocation, 130000);
     }
 
     private static Renderer CreateBikeStationsRenderer()
     {
-        // Create a render that shows bike stations according to how many bikes are available.
-        // The more bikes available, the larger the circle.
+        // 貸出可能な自転車の数に応じてシェアサイクル ステーションを表示するレンダリングを作成する
+        // 貸出可能な自転車が多いほど、円が大きくなる
         var classBreaksRenderer = new ClassBreaksRenderer
         {
             FieldName = "BikesAvailable"
@@ -207,12 +148,13 @@ public partial class CityBikesViewModel : ObservableObject
     {
         var dynEntity = bikeStation.GetDynamicEntity();
 
-        // Show a callout with the bike station name and the number of available bikes.
+        // シェアサイクル ステーション名と貸出/駐車可能な台数をコールアウトに表示する
         var stationName = bikeStation.Attributes["StationName"].ToString();
         var availableBikes = bikeStation.Attributes["BikesAvailable"].ToString();
-        var availableEBikes = bikeStation.Attributes["EBikesAvailable"].ToString();
+        var emptySlots = bikeStation.Attributes["EmptySlots"].ToString();
+
         var calloutDef = new CalloutDefinition(stationName,
-                             $"Bikes available: {availableBikes} ({availableEBikes} electric)")
+                             $"貸出可能: {availableBikes} 台 \n 駐車可能: {emptySlots} 台")
         {
             ButtonImage = _favoriteBikeStations.ContainsKey(dynEntity.EntityId) ?
                                        new RuntimeImage(new Uri(favoriteIconUrl)) :
@@ -226,23 +168,22 @@ public partial class CityBikesViewModel : ObservableObject
     public static CalloutDefinition GetCalloutDefinitionForStation(DynamicEntity favoriteStation,
         string removeFavoriteIconUrl)
     {
-        // Show a callout with the bike station name and the number of available bikes.
+        // シェアサイクル ステーション名と貸出可能な台数をコールアウトに表示する
         var stationName = favoriteStation.Attributes["StationName"].ToString();
         var availableBikes = (int)favoriteStation.Attributes["BikesAvailable"];
-        var availableEBikes = (int)favoriteStation.Attributes["EBikesAvailable"];
         var calloutDef = new CalloutDefinition(stationName,
-                             $"Bikes available: {availableBikes} ({availableEBikes} electric)")
+                             $"貸出可能: {availableBikes} 台")
         {
             ButtonImage = new RuntimeImage(new Uri(removeFavoriteIconUrl)),
-            // Set the dynamic entity as the callout definition tag.
-            // (the click event code will use the tag to get the dynamic entity).
+            // 動的エンティティをコールアウト定義のタグとして設定する
+            // (クリック イベント コードはタグを使用して動的エンティティを取得する)
             Tag = favoriteStation
         };
 
         return calloutDef;
     }
 
-    public bool ToggleIsFavorite(DynamicEntity station, string city)
+    public bool ToggleIsFavorite(DynamicEntity station)
     {
         var isFavorite = _favoriteBikeStations.ContainsKey(station.EntityId);
         if (isFavorite)
@@ -258,41 +199,35 @@ public partial class CityBikesViewModel : ObservableObject
             isFavorite = true;
         }
 
-        // Update the favorite list that's shown in the app (for this city).
-        FavoriteList = _favoriteBikeStations.Values.Where(f => f.Attributes["CityName"].ToString() == city).ToList();
+        // アプリに表示されるお気に入りリストを更新する
+        FavoriteList = _favoriteBikeStations.Values.ToList();
 
         return isFavorite;
     }
 
     private void DynEntity_DynamicEntityChanged(object sender, DynamicEntityChangedEventArgs e)
     {
-        // TODO: handle changes to bike inventory for favorite stations.
-        //    Perhaps highlight or flash the card in the UI.
+        // TODO: お気に入りのステーションの貸出可能台数の変更を処理する
+        //    （UI でカードをハイライトや点滅させるなど）
     }
 
     private void CreateTotalBikeInventory(DynamicEntity bikeStation)
     {
-        var emptySlots = (int)bikeStation.Attributes["EmptySlots"];
-        var availableBikes = (int)bikeStation.Attributes["BikesAvailable"] +
-            (int)bikeStation.Attributes["EBikesAvailable"];
+        var availableBikes = (int)bikeStation.Attributes["BikesAvailable"];
 
-        TotalBikes += emptySlots + availableBikes;
         BikesAvailable += availableBikes;
 
-        BikesOut = TotalBikes - BikesAvailable;
-        PercentBikesAvailable = (double)BikesAvailable / TotalBikes;
     }
 
     private void UpdateBikeInventory(int inventoryChange)
     {
         BikesAvailable += inventoryChange;
-        BikesOut = TotalBikes - BikesAvailable;
-        PercentBikesAvailable = (double)BikesAvailable / TotalBikes;
+
     }
 
     private async Task FlashDynamicEntityObservationAsync(MapPoint point, bool bikeAdded)
     {
-        // When an observation comes in, flash it on the map: green if more available bikes, red for less
+        // 観測データが入ったら地図上で点滅させる（貸出可能な台数が増えた場合は青色で、減った場合は赤色で表示）
         Graphic halo = null;
         try
         {
@@ -308,7 +243,7 @@ public partial class CityBikesViewModel : ObservableObject
             {
                 _flashOverlay.Graphics.Add(halo);
             }
-            for (var n = 0; n < 3; ++n)
+            for (var n = 0; n < 2; ++n)
             {
                 halo.IsVisible = true;
                 await Task.Delay(100);
@@ -318,7 +253,7 @@ public partial class CityBikesViewModel : ObservableObject
         }
         catch
         {
-            // Ignore
+            // 未処理
         }
         finally
         {
