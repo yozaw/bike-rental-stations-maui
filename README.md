@@ -1,15 +1,20 @@
-# Bike availability
+# シェアサイクル ステーションののモニタリング
 
-A .NET MAUI application that use ArcGIS Maps SDK for .NET to show bike availability at rental stations in a few major cities.
+ArcGIS Maps SDK for .NET を使用して、シェアサイクル ステーションの自転車の貸出状況を表示する .NET MAUI アプリケーションです。
 
-This app uses a custom dynamic entity data source to periodically poll the [CityBikes API](http://api.citybik.es/) for bike availability updates. See the blog [Create a custom dynamic entity data source]() for more information.
+このアプリは、カスタム DynamicEntityDataSource を使用して、[公共交通オープンデータで公開されているシェアサイクル ステーションのデータ](https://ckan.odpt.org/dataset/c_bikeshare_gbfs-openstreet)を定期的にポーリングして、自転車の貸出状況の更新を確認します。
+<!---
+詳細については、「[.NET MAUI で作成するリアルタイム アプリ（シェアサイクルのモニタリング）](xxx)」のブログ記事を参照してください。
+--->
+<img src="bike-app-maui.png" width="500">
 
-![](./bike-app-maui.png)
 
-### To get started:
-1. Ensure that your system meets the [System requirements](https://developers.arcgis.com/net/reference/system-requirements/) for ArcGIS Maps SDK for .NET.
-1. Clone this repo to your local machine.
-1. Open the Visual Studio project (BikeAvailability.csproj).
-    - The required NuGet packages will be restored, including ArcGIS Maps SDK for .NET.
-1. Add an API key on [line 37 of _MauiProgram.cs_](https://github.com/ThadT/bike-rental-stations-maui/blob/main/MauiProgram.cs#L37).
-    - Visit [developers.arcgis.com](https://developers.arcgis.com/sign-up/) to sign up for a free ArcGIS Developer account and to receive an API key.
+## アプリを使用する方法:
+1. お使いの環境が ArcGIS Maps SDK for .NET の[システム要件]((https://developers.arcgis.com/net/reference/system-requirements/))を満たしていることを確認してください。
+    - ArcGIS Maps SDK for .NET バージョン 200.2 で動作確認をしています。
+1. このリポジトリのクローンをローカル マシンに作成します。
+1. Visual Studio プロジェクト (BikeAvailability.csproj) を開きます。
+   - ArcGIS Maps SDK for .NET を含む、必要な NuGet パッケージが復元されます。
+1. MauiProgram.cs の 37 行目に API キーを追加します。
+   - API キーを作成するために、ArcGIS Developer アカウント（無償）を作成し、API キーを取得する方法は[こちら](https://esrijapan.github.io/arcgis-dev-resources/guide/get-dev-account/)のガイドを参照してください。
+
