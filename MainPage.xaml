@@ -16,7 +16,33 @@
                       Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                       Map="{Binding Map}"
                       GraphicsOverlays="{Binding GraphicsOverlays}"
+                      IsAttributionTextVisible="False" ViewpointChanged="OnViewpointChanged"
                       GeoViewTapped="MapViewTapped"/>
+
+        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                HeightRequest="20"
+                VerticalOptions="End" HorizontalOptions="FillAndExpand"
+                Margin="0"
+                BackgroundColor="White" Opacity=".7">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Label x:Name="AttributionText" Grid.Row="0" Grid.Column="0"
+                       FontSize="Caption"
+                       HorizontalOptions="Start"
+                       Text=""/>
+                <Label Grid.Row="0" Grid.Column="1"
+                       FontSize="Caption"
+                       HorizontalOptions="End"
+                       Text="Powered by Esri"/>
+            </Grid>
+        </Border>
+
         <Border x:Name="BikeInventoryPanel" 
                 WidthRequest="240" HeightRequest="80"
                 VerticalOptions="Start" HorizontalOptions="Start"

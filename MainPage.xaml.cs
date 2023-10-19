@@ -61,6 +61,12 @@ public partial class MainPage : ContentPage, IQueryAttributable
         } 
     }
 
+    private void OnViewpointChanged(object sender, EventArgs e)
+    {
+        // マップ上に表示するクレジット表記を設定する
+        var attributionText = mapView.AttributionText + ", " + _vm.BikesAttributionText;
+        AttributionText.Text = attributionText;
+    }
 
     // お気に入りページのボタン クリックからステーションに移動する処理
     public void ApplyQueryAttributes(IDictionary<string, object> query)

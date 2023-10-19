@@ -48,6 +48,10 @@ public partial class CityBikesViewModel : ObservableObject
     [ObservableProperty]
     private int _bikesAvailable;
 
+    // クレジット表示する文字列
+    [ObservableProperty]
+    private string _bikesAttributionText = "OpenStreet株式会社 / 公共交通オープンデータ協議会";
+
     private void Init()
     {
 
