@@ -16,7 +16,7 @@
                       Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                       Map="{Binding Map}"
                       GraphicsOverlays="{Binding GraphicsOverlays}"
-                      IsAttributionTextVisible="False" ViewpointChanged="OnViewpointChanged"
+                      IsAttributionTextVisible="False" DrawStatusChanged="OnDrawStatusChanged"
                       GeoViewTapped="MapViewTapped"/>
 
         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"

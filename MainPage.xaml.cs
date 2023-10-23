@@ -61,11 +61,14 @@ public partial class MainPage : ContentPage, IQueryAttributable
         } 
     }
 
-    private void OnViewpointChanged(object sender, EventArgs e)
+    private void OnDrawStatusChanged(object sender, DrawStatusChangedEventArgs e)
     {
-        // マップ上に表示するクレジット表記を設定する
-        var attributionText = mapView.AttributionText + ", " + _vm.BikesAttributionText;
-        AttributionText.Text = attributionText;
+        if (e.Status == DrawStatus.Completed)
+        {
+            // マップ上に表示するクレジット表記を設定する
+            var attributionText = mapView.AttributionText + ", " + _vm.BikesAttributionText;
+            AttributionText.Text = attributionText;
+        }
     }
 
     // お気に入りページのボタン クリックからステーションに移動する処理
