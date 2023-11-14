@@ -3,9 +3,8 @@
 ArcGIS Maps SDK for .NET を使用して、シェアサイクル ステーションの自転車の貸出状況を表示する .NET MAUI アプリケーションです。
 
 このアプリは、カスタム DynamicEntityDataSource を使用して、[公共交通オープンデータで公開されている OpenStreet 社のシェアサイクル ステーションのデータ](https://ckan.odpt.org/dataset/c_bikeshare_gbfs-openstreet)を定期的にポーリングして、自転車の貸出状況の更新を確認します。
-<!---
-詳細については、「[.NET MAUI で作成するリアルタイム アプリ（シェアサイクルのモニタリング）](xxx)」のブログ記事を参照してください。
---->
+詳細については、「[.NET MAUI で作成するリアルタイム アプリ（シェアサイクルのモニタリング）](https://community.esri.com/t5/a/n/ta-p/1349014
+)」のブログ記事を参照してください。
 <img src="bike-app-maui.png" width="500">
 
 
