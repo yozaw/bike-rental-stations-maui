@@ -10,8 +10,13 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 {
     // 指定された間隔で更新をリクエストするするタイマー
     private readonly IDispatcherTimer _getBikeUpdatesTimer = Application.Current.Dispatcher.CreateTimer();
-    // HELLO CYCLING のシェアサイクル ステーションのオープンデータのエンドポイント（https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_information.json）
-    private readonly string _cityBikesUrl;
+
+    // HELLO CYCLING のシェアサイクル ステーションのオープンデータのエンドポイント
+    // 各ステーションの現時点での貸出し・駐車可能台数が含まれる
+    private readonly string _cityBikesStatusUrl;
+    // 各ステーションの名前や緯度経度が含まれる
+    private readonly string _cityBikesStationUrl = "https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_information.json";
+
     // シェアサイクル ステーションの以前の観測データ（台数の変化を確認するため）
     private readonly Dictionary<string, Dictionary<string, object>> _previousObservations = new();
     // 一定の間隔で観測データを表示するために使用されるタイマーと関連する変数
@@ -19,13 +24,17 @@ internal class CityBikesDataSource : DynamicEntityDataSource
     private readonly List<Tuple<MapPoint, Dictionary<string, object>>> _currentObservations = new();
     private readonly bool _showSmoothUpdates;
 
-    public CityBikesDataSource(string cityBikesUrl,
+    private List<BikeStation> bikeStations;
+
+
+    public CityBikesDataSource(string cityBikesStatusUrl,
         int updateIntervalSeconds, bool smoothUpdateDisplay = true)
     {
         // タイマー間隔（URL に更新をリクエストする頻度）を保存する
         _getBikeUpdatesTimer.Interval = TimeSpan.FromSeconds(updateIntervalSeconds);
-        // シェアサイクル ステーションの URL
-        _cityBikesUrl = cityBikesUrl;
+        // シェアサイクル ステーションの空き状況の URL
+        _cityBikesStatusUrl = cityBikesStatusUrl;
+
         // タイマー間隔ごとに実行する関数を設定
         _getBikeUpdatesTimer.Tick += (s, e) => _ = PullBikeUpdates();
         // 各ステーションの更新を時間の経過とともに一貫して表示するか、最初のデータ取得時に表示するかを保存する
@@ -206,6 +215,22 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     public async Task GetInitialBikeStations()
     {
+
+        // 各シェアサイクル ステーションの ID、名前、緯度経度、住所情報を含む List を作成する
+        // HTTP リクエストから JSON のレスポンスを取得する
+        var client = new HttpClient();
+        HttpResponseMessage response = await client.GetAsync(new Uri(_cityBikesStationUrl));
+        if (response.IsSuccessStatusCode)
+        {
+            var cityBikeStationJson = await response.Content.ReadAsStringAsync();
+
+            // JSON の "stations" 部分を取得し、ステーションのリストを逆シリアル化する
+            var stationsStartPos = cityBikeStationJson.IndexOf(@"""stations"":[") + 11;
+            var stationsEndPos = cityBikeStationJson.LastIndexOf(@"]") + 1;
+            var stationsJson = cityBikeStationJson[stationsStartPos..stationsEndPos];
+            bikeStations = JsonSerializer.Deserialize<List<BikeStation>>(stationsJson);
+        }
+
         // データソースが接続されていない場合は終了する
         if (this.ConnectionStatus != ConnectionStatus.Connected) { return; }
 
@@ -235,14 +260,14 @@ internal class CityBikesDataSource : DynamicEntityDataSource
 
     private async Task<List<Tuple<MapPoint, Dictionary<string, object>>>> GetDeserializedCityBikeResponse()
     {
-        // Deserialize a response from CityBikes as a list of bike station locations and attributes.
+        // JSON 応答を、シェアサイクル ステーションの場所と属性のリストとしてデシリアライズする
         List<Tuple<MapPoint, Dictionary<string, object>>> bikeInfo = new();
 
         try
         {
             // HTTP リクエストから JSON のレスポンスを取得する
             var client = new HttpClient();
-            HttpResponseMessage response = await client.GetAsync(new Uri(_cityBikesUrl));
+            HttpResponseMessage response = await client.GetAsync(new Uri(_cityBikesStatusUrl));
             if (response.IsSuccessStatusCode)
             {
                 // このシェアサイクルの情報（すべてのステーションを含む）の JSON レスポンスを読み取る
@@ -252,26 +277,33 @@ internal class CityBikesDataSource : DynamicEntityDataSource
                 var stationsStartPos = cityBikeJson.IndexOf(@"""stations"":[") + 11;
                 var stationsEndPos = cityBikeJson.LastIndexOf(@"]") + 1;
                 var stationsJson = cityBikeJson[stationsStartPos..stationsEndPos];
-                var bikeUpdates = JsonSerializer.Deserialize<List<BikeStation>>(stationsJson);
+                var bikeUpdates = JsonSerializer.Deserialize<List<BikeStatus>>(stationsJson);
 
                 // 各ステーションの情報を反復する
                 foreach (var update in bikeUpdates)
                 {
+                    // 最初に取得した各ステーションの List から名前や緯度経度を取得する
+                    string stationName = bikeStations.Find(x => x.StationID == update.StationID).StationName;
+                    string address = bikeStations.Find(x => x.StationID == update.StationID).Address;
+                    double longitude = bikeStations.Find(x => x.StationID == update.StationID).Longitude;
+                    double latitude = bikeStations.Find(x => x.StationID == update.StationID).Latitude;
+
                     // レスポンスから属性のディクショナリを作成する
                     var attributes = new Dictionary<string, object>
                     {
                         { "StationID", update.StationID },
-                        { "StationName", update.StationName },
-                        { "Address", update.Address },
-                        { "Longitude", update.Longitude },
-                        { "Latitude", update.Latitude },
-                        { "BikesAvailable", update.StationCapacity.BikesAvailable },
-                        { "EmptySlots", update.StationCapacity.EmptySlots },
+                        { "StationName", stationName },
+                        { "Address", address },
+                        { "Longitude", longitude },
+                        { "Latitude", latitude },
+                        { "BikesAvailable", update.BikesAvailable },
+                        { "EmptySlots", update.EmptySlots },
                         { "InventoryChange", 0 },
                         { "ImageUrl", "https://static.arcgis.com/images/Symbols/Transportation/esriDefaultMarker_189.png" }
                     };
+
                     // 経度（x）と緯度（y）の値からマップ ポイントを作成する
-                    var location = new MapPoint(update.Longitude, update.Latitude, SpatialReferences.Wgs84);
+                    var location = new MapPoint(longitude, latitude, SpatialReferences.Wgs84);
 
                     // このシェアサイクル ステーションの情報をリストに追加する
                     bikeInfo.Add(new Tuple<MapPoint, Dictionary<string, object>>(location, attributes));

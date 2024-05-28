@@ -26,7 +26,7 @@ public partial class CityBikesViewModel : ObservableObject
     [ObservableProperty]
     private string _cityName = "HELLO CYCLING";
 
-    private string _cityBikesUrl = "https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_information.json";
+    private string _cityBikesStatusUrl = "https://api-public.odpt.org/api/v4/gbfs/hellocycling/station_status.json";
 
     private MapPoint _initLocation = new MapPoint(139.76147890091, 35.654611251508, SpatialReferences.Wgs84);
 
@@ -80,7 +80,7 @@ public partial class CityBikesViewModel : ObservableObject
         BikesAvailable = 0;
 
         // URL と取得間隔を使用してカスタム Dynamic EntityDataSource のインスタンスを作成する
-        _cityBikesDataSource = new CityBikesDataSource(_cityBikesUrl, UpdateIntervalSeconds);
+        _cityBikesDataSource = new CityBikesDataSource(_cityBikesStatusUrl, UpdateIntervalSeconds);
 
         // 接続が確立されたら、初期データセットをリクエストする
         _cityBikesDataSource.ConnectionStatusChanged += (s, e) =>

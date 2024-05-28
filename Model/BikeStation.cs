@@ -6,9 +6,6 @@ namespace BikeAvailability;
 public class BikeStation
 {
 
-    [JsonPropertyName("vehicle_type_capacity")]
-    public StationCapacity StationCapacity { get; set; }
-
     [JsonPropertyName("name")]
     public string StationName { get; set; }
 
@@ -24,16 +21,6 @@ public class BikeStation
     [JsonPropertyName("address")]
     public string Address { get; set; }
 
-}
-
-// オープンデータ の API の JSON レスポンスから返されるシェアサイクル ステーションの「vehicle_type_capacity」情報を表すクラス
-public class StationCapacity
-{
-
-    [JsonPropertyName("num_bikes_rentalable")]
-    public int BikesAvailable { get; set; }
-
-    [JsonPropertyName("num_bikes_parkable")]
-    public int EmptySlots { get; set; }
 
 }
+
